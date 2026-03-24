@@ -1,22 +1,22 @@
 # Gradle Dependency Tree Plugin
 
-A Gradle plugin that generates a JSON report of a project's dependencies, organized by build-time and runtime configurations. Compatible with Gradle's [configuration cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
+A Gradle plugin that generates JSON reports of a project's dependencies, organized by plugins, build-time, and runtime configurations. Compatible with Gradle's [configuration cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
 
 ## How it works
 
-The plugin registers a task named `dependencyTree` in the `reporting` group. When the task runs, it resolves the following configurations and writes a structured JSON tree to a file:
+The plugin registers two tasks in the `reporting` group:
 
-**Build-time configurations**
-- `compileClasspath`
-- `testCompileClasspath`
-- `annotationProcessor`
-- `testAnnotationProcessor`
+**`dependencyTree`** — runs per project and resolves the following configurations:
 
-**Runtime configurations**
-- `runtimeClasspath`
-- `testRuntimeClasspath`
+| Section | Configurations |
+|---|---|
+| `plugins` | buildscript `classpath` |
+| `buildDependencies` | `compileClasspath`, `testCompileClasspath`, `annotationProcessor`, `testAnnotationProcessor` |
+| `runtimeDependencies` | `runtimeClasspath`, `testRuntimeClasspath` |
 
-Each dependency entry includes its `group`, `name`, and `version`, along with a recursive list of transitive dependencies. Circular dependencies are detected and marked with `"(*)"` to prevent infinite loops.
+Each dependency entry includes its `group`, `name`, and `version`, along with a recursive list of transitive dependencies. Circular dependencies are detected and marked with `"(*)"` to prevent infinite loops. Project dependencies (other subprojects in the same build) are excluded — only external dependencies are listed.
+
+**`allDependencyTrees`** — runs on the root project and combines the output of all `dependencyTree` tasks into a single file with a `projects` list.
 
 The plugin is configuration cache compatible. Dependency resolution happens inside lazy providers that are evaluated and serialized during the configuration cache store phase. On a cache hit, the stored values are restored directly without re-resolving.
 
@@ -29,8 +29,6 @@ The plugin is configuration cache compatible. Dependency resolution happens insi
 
 ### Single-project build
 
-Add the plugin to your `settings.gradle` and `build.gradle`:
-
 **settings.gradle**
 ```groovy
 pluginManagement {
@@ -41,17 +39,16 @@ pluginManagement {
 **build.gradle**
 ```groovy
 plugins {
+    id 'java'
     id 'nu.fot.dependency-tree'
 }
 ```
-
-Then run the task:
 
 ```sh
 ./gradlew dependencyTree
 ```
 
-The report is written to `build/reports/dependency-tree.json` by default.
+Output: `build/dependency-tree/<projectName>.json`
 
 ### Multi-project build
 
@@ -60,27 +57,29 @@ Apply the plugin to each subproject individually:
 **subproject/build.gradle**
 ```groovy
 plugins {
+    id 'java'
     id 'nu.fot.dependency-tree'
 }
 ```
 
-In a multi-project build the output files are written to the root project's build directory, one file per subproject:
+All output files are written to the root project's build directory:
 
 ```
 build/
 └── dependency-tree/
+    ├── all.json      ← combined report (allDependencyTrees)
     ├── app.json
-    ├── service.json
-    └── model.json
+    ├── model.json
+    └── service.json
 ```
 
-Run for all subprojects at once from the root:
+Run `dependencyTree` for all subprojects, then combine:
 
 ```sh
-./gradlew dependencyTree
+./gradlew allDependencyTrees
 ```
 
-Or for a specific subproject:
+Or for a specific subproject only:
 
 ```sh
 ./gradlew :app:dependencyTree
@@ -89,14 +88,24 @@ Or for a specific subproject:
 ### With configuration cache
 
 ```sh
-./gradlew dependencyTree --configuration-cache
+./gradlew allDependencyTrees --configuration-cache
 ```
 
 ## Output format
 
+### Per-project file (`<name>.json`)
+
 ```json
 {
-  "project": "my-project",
+  "project": "app",
+  "plugins": [
+    {
+      "group": "org.springframework.boot",
+      "name": "org.springframework.boot.gradle.plugin",
+      "version": "3.4.3",
+      "dependencies": []
+    }
+  ],
   "buildDependencies": {
     "compileClasspath": [
       {
@@ -112,11 +121,36 @@ Or for a specific subproject:
           }
         ]
       }
-    ]
+    ],
+    "testCompileClasspath": [],
+    "annotationProcessor": [],
+    "testAnnotationProcessor": []
   },
   "runtimeDependencies": {
-    "runtimeClasspath": []
+    "runtimeClasspath": [],
+    "testRuntimeClasspath": []
   }
+}
+```
+
+### Combined file (`all.json`)
+
+```json
+{
+  "projects": [
+    {
+      "project": "app",
+      "plugins": [],
+      "buildDependencies": {},
+      "runtimeDependencies": {}
+    },
+    {
+      "project": "model",
+      "plugins": [],
+      "buildDependencies": {},
+      "runtimeDependencies": {}
+    }
+  ]
 }
 ```
 
@@ -128,5 +162,6 @@ Or for a specific subproject:
 | Group | `nu.fot` |
 | Version | `1.0.0` |
 | Task name | `dependencyTree` |
+| Aggregation task name | `allDependencyTrees` |
 | Task group | `reporting` |
 | Implementation class | `nu.fot.gradle.deptree.DependencyTreePlugin` |

@@ -4,6 +4,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvedDependency;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.tasks.TaskProvider;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -28,9 +30,30 @@ public class DependencyTreePlugin implements Plugin<Project> {
             "testRuntimeClasspath"
     );
 
+    private static final String ALL_TASK_NAME = "allDependencyTrees";
+    private static final String ALL_FILES_PROP = "_dependencyTreeFiles";
+
     @Override
     public void apply(Project project) {
-        project.getTasks().register("dependencyTree", DependencyTreeTask.class, task -> {
+        Project root = project.getRootProject();
+
+        ConfigurableFileCollection allFiles;
+        if (root.getExtensions().getExtraProperties().has(ALL_FILES_PROP)) {
+            allFiles = (ConfigurableFileCollection) root.getExtensions().getExtraProperties().get(ALL_FILES_PROP);
+        } else {
+            allFiles = root.files();
+            root.getExtensions().getExtraProperties().set(ALL_FILES_PROP, allFiles);
+            root.getTasks().register(ALL_TASK_NAME, AllDependencyTreesTask.class, task -> {
+                task.setGroup("reporting");
+                task.setDescription("Kombinerar alla underprojekts beroendeträd i en fil.");
+                task.getProjectFiles().from(allFiles);
+                task.getOutputFile().convention(
+                        root.getLayout().getBuildDirectory().file("dependency-tree/all.json")
+                );
+            });
+        }
+
+        TaskProvider<DependencyTreeTask> depTreeTask = project.getTasks().register("dependencyTree", DependencyTreeTask.class, task -> {
             task.setGroup("reporting");
             task.setDescription("Visar ett träd över alla beroenden uppdelade på byggtid och körtid.");
             task.getOutputFile().convention(
@@ -48,6 +71,8 @@ public class DependencyTreePlugin implements Plugin<Project> {
                     project.provider(() -> pluginsJson(project).toString())
             );
         });
+
+        allFiles.from(depTreeTask.flatMap(DependencyTreeTask::getOutputFile));
     }
 
     private static Set<String> projectModules(Project project) {
