@@ -45,6 +45,12 @@ public class DependencyTreePlugin implements Plugin<Project> {
         });
     }
 
+    private static Set<String> projectModules(Project project) {
+        return project.getRootProject().getAllprojects().stream()
+                .map(p -> p.getGroup() + ":" + p.getName())
+                .collect(Collectors.toSet());
+    }
+
     private static String configsToJson(Project project, List<String> names, String indent) {
         Map<String, Configuration> configs = new LinkedHashMap<>();
         for (String name : names) {
@@ -58,13 +64,14 @@ public class DependencyTreePlugin implements Plugin<Project> {
             return "{}";
         }
 
+        Set<String> projectModules = projectModules(project);
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         List<Map.Entry<String, Configuration>> entries = List.copyOf(configs.entrySet());
         for (int i = 0; i < entries.size(); i++) {
             Map.Entry<String, Configuration> entry = entries.get(i);
             sb.append(indent).append("  \"").append(entry.getKey()).append("\": ");
-            sb.append(configToJson(entry.getValue(), indent + "  "));
+            sb.append(configToJson(entry.getValue(), projectModules, indent + "  "));
             if (i < entries.size() - 1) sb.append(",");
             sb.append("\n");
         }
@@ -72,7 +79,7 @@ public class DependencyTreePlugin implements Plugin<Project> {
         return sb.toString();
     }
 
-    private static String configToJson(Configuration config, String indent) {
+    private static String configToJson(Configuration config, Set<String> projectModules, String indent) {
         Set<ResolvedDependency> firstLevel;
         try {
             firstLevel = config.getResolvedConfiguration().getFirstLevelModuleDependencies();
@@ -81,6 +88,7 @@ public class DependencyTreePlugin implements Plugin<Project> {
         }
 
         List<ResolvedDependency> sorted = firstLevel.stream()
+                .filter(d -> !projectModules.contains(d.getModuleGroup() + ":" + d.getModuleName()))
                 .sorted((a, b) -> a.getModule().getId().toString().compareTo(b.getModule().getId().toString()))
                 .collect(Collectors.toList());
 
