@@ -1,0 +1,34 @@
+plugins {
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+}
+
+group = pluginGroup
+version = pluginVersion
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+gradlePlugin {
+    plugins {
+        dependencyTree {
+            id = pluginId
+            implementationClass = 'nu.fot.gradle.deptree.DependencyTreePlugin'
+        }
+    }
+}
+
+dependencies {
+    // gradleApi() ingår automatiskt via java-gradle-plugin
+}
+
+publishing {
+    repositories {
+        maven {
+            url = layout.buildDirectory.dir('repo')
+        }
+    }
+}
