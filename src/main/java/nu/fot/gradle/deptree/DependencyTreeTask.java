@@ -6,6 +6,8 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,17 +32,16 @@ public abstract class DependencyTreeTask extends DefaultTask {
 
     @TaskAction
     public void printDependencyTree() {
-        String json = "{\n" +
-                "  \"project\": \"" + getProjectName().get() + "\",\n" +
-                "  \"plugins\": " + getPluginsJson().get() + ",\n" +
-                "  \"buildDependencies\": " + getBuildDependenciesJson().get() + ",\n" +
-                "  \"runtimeDependencies\": " + getRuntimeDependenciesJson().get() + "\n" +
-                "}";
+        JSONObject root = new JSONObject();
+        root.put("project", getProjectName().get());
+        root.put("plugins", new JSONArray(getPluginsJson().get()));
+        root.put("buildDependencies", new JSONObject(getBuildDependenciesJson().get()));
+        root.put("runtimeDependencies", new JSONObject(getRuntimeDependenciesJson().get()));
 
         File output = getOutputFile().getAsFile().get();
         output.getParentFile().mkdirs();
         try {
-            Files.writeString(output.toPath(), json);
+            Files.writeString(output.toPath(), root.toString(2));
         } catch (IOException e) {
             throw new RuntimeException("Kunde inte skriva till fil: " + output, e);
         }

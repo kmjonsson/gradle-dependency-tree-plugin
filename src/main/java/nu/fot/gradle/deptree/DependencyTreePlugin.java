@@ -4,6 +4,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvedDependency;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -37,23 +39,15 @@ public class DependencyTreePlugin implements Plugin<Project> {
             );
             task.getProjectName().set(project.getName());
             task.getBuildDependenciesJson().set(
-                    project.provider(() -> configsToJson(project, BUILD_CONFIGS, "  "))
+                    project.provider(() -> configsToJson(project, BUILD_CONFIGS).toString())
             );
             task.getRuntimeDependenciesJson().set(
-                    project.provider(() -> configsToJson(project, RUNTIME_CONFIGS, "  "))
+                    project.provider(() -> configsToJson(project, RUNTIME_CONFIGS).toString())
             );
             task.getPluginsJson().set(
-                    project.provider(() -> pluginsJson(project, "  "))
+                    project.provider(() -> pluginsJson(project).toString())
             );
         });
-    }
-
-    private static String pluginsJson(Project project, String indent) {
-        Configuration classpath = project.getBuildscript().getConfigurations().findByName("classpath");
-        if (classpath == null || !classpath.isCanBeResolved()) {
-            return "[]";
-        }
-        return configToJson(classpath, projectModules(project), indent);
     }
 
     private static Set<String> projectModules(Project project) {
@@ -62,7 +56,7 @@ public class DependencyTreePlugin implements Plugin<Project> {
                 .collect(Collectors.toSet());
     }
 
-    private static String configsToJson(Project project, List<String> names, String indent) {
+    private static JSONObject configsToJson(Project project, List<String> names) {
         Map<String, Configuration> configs = new LinkedHashMap<>();
         for (String name : names) {
             Configuration config = project.getConfigurations().findByName(name);
@@ -71,31 +65,30 @@ public class DependencyTreePlugin implements Plugin<Project> {
             }
         }
 
-        if (configs.isEmpty()) {
-            return "{}";
-        }
-
         Set<String> projectModules = projectModules(project);
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\n");
-        List<Map.Entry<String, Configuration>> entries = List.copyOf(configs.entrySet());
-        for (int i = 0; i < entries.size(); i++) {
-            Map.Entry<String, Configuration> entry = entries.get(i);
-            sb.append(indent).append("  \"").append(entry.getKey()).append("\": ");
-            sb.append(configToJson(entry.getValue(), projectModules, indent + "  "));
-            if (i < entries.size() - 1) sb.append(",");
-            sb.append("\n");
+        JSONObject result = new JSONObject();
+        for (Map.Entry<String, Configuration> entry : configs.entrySet()) {
+            result.put(entry.getKey(), configToJson(entry.getValue(), projectModules));
         }
-        sb.append(indent).append("}");
-        return sb.toString();
+        return result;
     }
 
-    private static String configToJson(Configuration config, Set<String> projectModules, String indent) {
+    private static JSONArray pluginsJson(Project project) {
+        Configuration classpath = project.getBuildscript().getConfigurations().findByName("classpath");
+        if (classpath == null || !classpath.isCanBeResolved()) {
+            return new JSONArray();
+        }
+        return configToJson(classpath, projectModules(project));
+    }
+
+    private static JSONArray configToJson(Configuration config, Set<String> projectModules) {
         Set<ResolvedDependency> firstLevel;
         try {
             firstLevel = config.getResolvedConfiguration().getFirstLevelModuleDependencies();
         } catch (Exception e) {
-            return "{ \"error\": \"" + e.getMessage().replace("\"", "\\\"") + "\" }";
+            JSONArray error = new JSONArray();
+            error.put(new JSONObject().put("error", e.getMessage()));
+            return error;
         }
 
         List<ResolvedDependency> sorted = firstLevel.stream()
@@ -103,43 +96,33 @@ public class DependencyTreePlugin implements Plugin<Project> {
                 .sorted((a, b) -> a.getModule().getId().toString().compareTo(b.getModule().getId().toString()))
                 .collect(Collectors.toList());
 
-        return depsToJson(sorted, indent, new HashSet<>());
+        return depsToJson(sorted, new HashSet<>());
     }
 
-    private static String depsToJson(List<ResolvedDependency> deps, String indent, Set<String> visited) {
-        if (deps.isEmpty()) {
-            return "[]";
+    private static JSONArray depsToJson(List<ResolvedDependency> deps, Set<String> visited) {
+        JSONArray array = new JSONArray();
+        for (ResolvedDependency dep : deps) {
+            array.put(depToJson(dep, new HashSet<>(visited)));
         }
-        StringBuilder sb = new StringBuilder();
-        sb.append("[\n");
-        for (int i = 0; i < deps.size(); i++) {
-            sb.append(depToJson(deps.get(i), indent + "  ", new HashSet<>(visited)));
-            if (i < deps.size() - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append(indent).append("]");
-        return sb.toString();
+        return array;
     }
 
-    private static String depToJson(ResolvedDependency dep, String indent, Set<String> visited) {
+    private static JSONObject depToJson(ResolvedDependency dep, Set<String> visited) {
         String key = dep.getModuleGroup() + ":" + dep.getModuleName();
-        StringBuilder sb = new StringBuilder();
-        sb.append(indent).append("{\n");
-        sb.append(indent).append("  \"group\": \"").append(dep.getModuleGroup()).append("\",\n");
-        sb.append(indent).append("  \"name\": \"").append(dep.getModuleName()).append("\",\n");
-        sb.append(indent).append("  \"version\": \"").append(dep.getModuleVersion()).append("\",\n");
+        JSONObject obj = new JSONObject();
+        obj.put("group", dep.getModuleGroup());
+        obj.put("name", dep.getModuleName());
+        obj.put("version", dep.getModuleVersion());
 
         if (visited.contains(key)) {
-            sb.append(indent).append("  \"dependencies\": \"(*)\"").append("\n");
+            obj.put("dependencies", "(*)");
         } else {
             visited.add(key);
             List<ResolvedDependency> children = dep.getChildren().stream()
                     .sorted((a, b) -> a.getModule().getId().toString().compareTo(b.getModule().getId().toString()))
                     .collect(Collectors.toList());
-            sb.append(indent).append("  \"dependencies\": ").append(depsToJson(children, indent + "  ", visited)).append("\n");
+            obj.put("dependencies", depsToJson(children, visited));
         }
-
-        sb.append(indent).append("}");
-        return sb.toString();
+        return obj;
     }
 }
