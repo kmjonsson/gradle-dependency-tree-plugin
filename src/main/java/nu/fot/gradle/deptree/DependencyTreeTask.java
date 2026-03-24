@@ -22,6 +22,9 @@ public abstract class DependencyTreeTask extends DefaultTask {
     @Input
     public abstract Property<String> getRuntimeDependenciesJson();
 
+    @Input
+    public abstract Property<String> getPluginsJson();
+
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
@@ -29,6 +32,7 @@ public abstract class DependencyTreeTask extends DefaultTask {
     public void printDependencyTree() {
         String json = "{\n" +
                 "  \"project\": \"" + getProjectName().get() + "\",\n" +
+                "  \"plugins\": " + getPluginsJson().get() + ",\n" +
                 "  \"buildDependencies\": " + getBuildDependenciesJson().get() + ",\n" +
                 "  \"runtimeDependencies\": " + getRuntimeDependenciesJson().get() + "\n" +
                 "}";

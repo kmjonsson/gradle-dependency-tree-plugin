@@ -77,6 +77,28 @@ class DependencyTreePluginTest {
     }
 
     @Test
+    void externalPluginsAreIncludedInOutput(@TempDir Path projectDir) throws IOException {
+        write(projectDir.resolve("settings.gradle"), "rootProject.name = 'with-plugin'");
+        write(projectDir.resolve("build.gradle"), """
+                buildscript {
+                    repositories { mavenCentral() }
+                    dependencies {
+                        classpath 'org.apache.commons:commons-lang3:3.14.0'
+                    }
+                }
+                plugins {
+                    id 'nu.fot.dependency-tree'
+                }
+                """);
+
+        runner(projectDir, "dependencyTree").build();
+
+        String json = readJson(projectDir, "with-plugin");
+        assertTrue(json.contains("\"plugins\""), "JSON ska innehålla plugins-nyckel");
+        assertTrue(json.contains("\"name\": \"commons-lang3\""), "Plugin-beroende ska synas");
+    }
+
+    @Test
     void externalDependencyAppearsInOutput(@TempDir Path projectDir) throws IOException {
         write(projectDir.resolve("settings.gradle"), "rootProject.name = 'with-deps'");
         write(projectDir.resolve("build.gradle"), """

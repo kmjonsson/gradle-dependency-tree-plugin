@@ -42,7 +42,18 @@ public class DependencyTreePlugin implements Plugin<Project> {
             task.getRuntimeDependenciesJson().set(
                     project.provider(() -> configsToJson(project, RUNTIME_CONFIGS, "  "))
             );
+            task.getPluginsJson().set(
+                    project.provider(() -> pluginsJson(project, "  "))
+            );
         });
+    }
+
+    private static String pluginsJson(Project project, String indent) {
+        Configuration classpath = project.getBuildscript().getConfigurations().findByName("classpath");
+        if (classpath == null || !classpath.isCanBeResolved()) {
+            return "[]";
+        }
+        return configToJson(classpath, projectModules(project), indent);
     }
 
     private static Set<String> projectModules(Project project) {
