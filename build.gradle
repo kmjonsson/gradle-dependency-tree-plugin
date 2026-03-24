@@ -21,8 +21,19 @@ gradlePlugin {
     }
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
     // gradleApi() ingår automatiskt via java-gradle-plugin
+    testImplementation gradleTestKit()
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 publishing {
