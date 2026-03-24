@@ -1,0 +1,27 @@
+// Init script that applies the dependency-tree plugin to all projects
+// without requiring any changes to the target project.
+//
+// Requires the plugin to be published to local Maven first:
+//   cd /path/to/gradle-dependency-tree-plugin && ./gradlew publishToMavenLocal
+//
+// Usage:
+//   ./gradlew --init-script /path/to/gradle-dependency-tree-plugin/init.gradle allDependencyTrees
+//
+// Or use the bundled run.sh script which handles publishing automatically:
+//   /path/to/gradle-dependency-tree-plugin/run.sh [project-dir] [task]
+
+initscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'nu.fot:gradle-dependency-tree-plugin:1.0.0'
+    }
+}
+
+gradle.afterProject { project ->
+    if (!project.plugins.hasPlugin('nu.fot.dependency-tree')) {
+        project.apply plugin: nu.fot.gradle.deptree.DependencyTreePlugin
+    }
+}

@@ -154,6 +154,34 @@ Or for a specific subproject only:
 }
 ```
 
+## Running without modifying a project
+
+The plugin can be applied to any existing Gradle project without touching its build files, using the bundled `run.sh` script and `init.gradle`.
+
+`run.sh` publishes the plugin to your local Maven repository and then invokes the target project's Gradle wrapper with an init script that applies the plugin automatically.
+
+```sh
+# Run against any Gradle project
+/path/to/gradle-dependency-tree-plugin/run.sh /path/to/target-project
+
+# Run a specific task (default: allDependencyTrees)
+/path/to/gradle-dependency-tree-plugin/run.sh /path/to/target-project dependencyTree
+```
+
+Or invoke manually:
+
+```sh
+# Step 1 — publish plugin to local Maven
+cd /path/to/gradle-dependency-tree-plugin
+./gradlew publishToMavenLocal
+
+# Step 2 — run against target
+cd /path/to/target-project
+./gradlew --init-script /path/to/gradle-dependency-tree-plugin/init.gradle allDependencyTrees
+```
+
+The init script uses `gradle.afterProject` to apply the plugin only to projects that do not already have it, so it is safe to run against projects that already use the plugin.
+
 ## Plugin details
 
 | Property | Value |
