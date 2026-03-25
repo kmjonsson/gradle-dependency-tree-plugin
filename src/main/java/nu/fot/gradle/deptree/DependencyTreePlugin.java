@@ -10,25 +10,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class DependencyTreePlugin implements Plugin<Project> {
-
-    private static final List<String> BUILD_CONFIGS = List.of(
-            "compileClasspath",
-            "testCompileClasspath",
-            "annotationProcessor",
-            "testAnnotationProcessor",
-            "testRuntimeClasspath"
-    );
-
-    private static final List<String> RUNTIME_CONFIGS = List.of(
-            "runtimeClasspath"
-    );
 
     private static final String ALL_TASK_NAME = "allDependencyTrees";
     private static final String ALL_FILES_PROP = "_dependencyTreeFiles";
@@ -62,10 +48,10 @@ public class DependencyTreePlugin implements Plugin<Project> {
             );
             task.getProjectName().set(project.getName());
             task.getBuildDependenciesJson().set(
-                    project.provider(() -> configsToJson(project, BUILD_CONFIGS).toString())
+                    project.provider(() -> categorizedConfigsJson(project, false).toString())
             );
             task.getRuntimeDependenciesJson().set(
-                    project.provider(() -> configsToJson(project, RUNTIME_CONFIGS).toString())
+                    project.provider(() -> categorizedConfigsJson(project, true).toString())
             );
             task.getPluginsJson().set(
                     project.provider(() -> pluginsJson(project).toString())
@@ -75,27 +61,39 @@ public class DependencyTreePlugin implements Plugin<Project> {
         allFiles.from(depTreeTask.flatMap(DependencyTreeTask::getOutputFile));
     }
 
+    /**
+     * A configuration is considered production-runtime if:
+     * 1. Its root ancestors (leaf nodes in the hierarchy — configurations with no parents)
+     *    include "runtimeOnly". This identifies the configuration as runtime-scoped,
+     *    regardless of what the resolvable configuration is named.
+     * 2. The configuration itself does not have a name starting with "test".
+     *    Only the configuration itself is checked — not its ancestors — because
+     *    some non-test configurations (e.g. Spring Boot's testAndDevelopmentOnly) have
+     *    "test"-prefixed names in the hierarchy while still feeding into production runtime.
+     */
+    private static boolean isProductionRuntime(Configuration config) {
+        boolean hasRuntimeRoot = config.getHierarchy().stream()
+                .filter(c -> c.getExtendsFrom().isEmpty())
+                .anyMatch(c -> c.getName().equals("runtimeOnly"));
+
+        return hasRuntimeRoot && !config.getName().startsWith("test");
+    }
+
+    private static JSONObject categorizedConfigsJson(Project project, boolean productionRuntime) {
+        Set<String> projectModules = projectModules(project);
+        JSONObject result = new JSONObject();
+        project.getConfigurations().stream()
+                .filter(c -> c.isCanBeResolved() && !c.isCanBeConsumed())
+                .filter(c -> isProductionRuntime(c) == productionRuntime)
+                .sorted((a, b) -> a.getName().compareTo(b.getName()))
+                .forEach(c -> result.put(c.getName(), configToJson(c, projectModules)));
+        return result;
+    }
+
     private static Set<String> projectModules(Project project) {
         return project.getRootProject().getAllprojects().stream()
                 .map(p -> p.getGroup() + ":" + p.getName())
                 .collect(Collectors.toSet());
-    }
-
-    private static JSONObject configsToJson(Project project, List<String> names) {
-        Map<String, Configuration> configs = new LinkedHashMap<>();
-        for (String name : names) {
-            Configuration config = project.getConfigurations().findByName(name);
-            if (config != null && config.isCanBeResolved()) {
-                configs.put(name, config);
-            }
-        }
-
-        Set<String> projectModules = projectModules(project);
-        JSONObject result = new JSONObject();
-        for (Map.Entry<String, Configuration> entry : configs.entrySet()) {
-            result.put(entry.getKey(), configToJson(entry.getValue(), projectModules));
-        }
-        return result;
     }
 
     private static JSONArray pluginsJson(Project project) {
