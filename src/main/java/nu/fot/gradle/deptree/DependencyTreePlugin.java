@@ -22,12 +22,12 @@ public class DependencyTreePlugin implements Plugin<Project> {
             "compileClasspath",
             "testCompileClasspath",
             "annotationProcessor",
-            "testAnnotationProcessor"
+            "testAnnotationProcessor",
+            "testRuntimeClasspath"
     );
 
     private static final List<String> RUNTIME_CONFIGS = List.of(
-            "runtimeClasspath",
-            "testRuntimeClasspath"
+            "runtimeClasspath"
     );
 
     private static final String ALL_TASK_NAME = "allDependencyTrees";
@@ -45,7 +45,7 @@ public class DependencyTreePlugin implements Plugin<Project> {
             root.getExtensions().getExtraProperties().set(ALL_FILES_PROP, allFiles);
             root.getTasks().register(ALL_TASK_NAME, AllDependencyTreesTask.class, task -> {
                 task.setGroup("reporting");
-                task.setDescription("Kombinerar alla underprojekts beroendeträd i en fil.");
+                task.setDescription("Combines dependency trees from all subprojects into a single file.");
                 task.getProjectFiles().from(allFiles);
                 task.getOutputFile().convention(
                         root.getLayout().getBuildDirectory().file("dependency-tree/all.json")
@@ -55,7 +55,7 @@ public class DependencyTreePlugin implements Plugin<Project> {
 
         TaskProvider<DependencyTreeTask> depTreeTask = project.getTasks().register("dependencyTree", DependencyTreeTask.class, task -> {
             task.setGroup("reporting");
-            task.setDescription("Visar ett träd över alla beroenden uppdelade på byggtid och körtid.");
+            task.setDescription("Generates a dependency tree report split into build-time and runtime dependencies.");
             task.getOutputFile().convention(
                     project.getRootProject().getLayout().getBuildDirectory()
                             .file("dependency-tree/" + project.getName() + ".json")

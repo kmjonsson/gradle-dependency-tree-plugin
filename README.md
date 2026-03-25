@@ -11,8 +11,8 @@ The plugin registers two tasks in the `reporting` group:
 | Section | Configurations |
 |---|---|
 | `plugins` | buildscript `classpath` |
-| `buildDependencies` | `compileClasspath`, `testCompileClasspath`, `annotationProcessor`, `testAnnotationProcessor` |
-| `runtimeDependencies` | `runtimeClasspath`, `testRuntimeClasspath` |
+| `buildDependencies` | `compileClasspath`, `testCompileClasspath`, `annotationProcessor`, `testAnnotationProcessor`, `testRuntimeClasspath` |
+| `runtimeDependencies` | `runtimeClasspath` |
 
 Each dependency entry includes its `group`, `name`, and `version`, along with a recursive list of transitive dependencies. Circular dependencies are detected and marked with `"(*)"` to prevent infinite loops. Project dependencies (other subprojects in the same build) are excluded — only external dependencies are listed.
 

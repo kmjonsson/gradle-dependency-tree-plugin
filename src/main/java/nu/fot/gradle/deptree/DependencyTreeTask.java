@@ -43,7 +43,7 @@ public abstract class DependencyTreeTask extends DefaultTask {
         try {
             Files.writeString(output.toPath(), root.toString(2));
         } catch (IOException e) {
-            throw new RuntimeException("Kunde inte skriva till fil: " + output, e);
+            throw new RuntimeException("Failed to write output file: " + output, e);
         }
     }
 }

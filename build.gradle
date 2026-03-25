@@ -26,7 +26,7 @@ repositories {
 }
 
 dependencies {
-    // gradleApi() ingår automatiskt via java-gradle-plugin
+    // gradleApi() is included automatically via java-gradle-plugin
     implementation 'org.json:json:20240303'
     testImplementation gradleTestKit()
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'

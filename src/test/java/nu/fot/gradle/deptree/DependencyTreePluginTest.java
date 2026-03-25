@@ -72,8 +72,16 @@ class DependencyTreePluginTest {
         runner(projectDir, "dependencyTree").build();
 
         String json = readJson(projectDir, "empty");
-        assertTrue(json.contains("\"compileClasspath\": []"));
-        assertTrue(json.contains("\"runtimeClasspath\": []"));
+        // Verify section membership via the @Input provider strings, which are embedded in the JSON
+        // buildDependencies should contain testRuntimeClasspath
+        assertTrue(json.contains("\"testRuntimeClasspath\""));
+        // runtimeDependencies should only contain runtimeClasspath — verify via JSONObject
+        org.json.JSONObject root = new org.json.JSONObject(json);
+        org.json.JSONObject runtime = root.getJSONObject("runtimeDependencies");
+        assertTrue(runtime.has("runtimeClasspath"), "runtimeClasspath should be in runtimeDependencies");
+        assertFalse(runtime.has("testRuntimeClasspath"), "testRuntimeClasspath should not be in runtimeDependencies");
+        org.json.JSONObject build = root.getJSONObject("buildDependencies");
+        assertTrue(build.has("testRuntimeClasspath"), "testRuntimeClasspath should be in buildDependencies");
     }
 
     @Test
@@ -94,7 +102,7 @@ class DependencyTreePluginTest {
         runner(projectDir, "dependencyTree").build();
 
         String json = readJson(projectDir, "with-plugin");
-        assertTrue(json.contains("\"plugins\""), "JSON ska innehålla plugins-nyckel");
+        assertTrue(json.contains("\"plugins\""), "JSON should contain plugins key");
         assertTrue(json.contains("\"name\": \"commons-lang3\""), "Plugin-beroende ska synas");
     }
 
