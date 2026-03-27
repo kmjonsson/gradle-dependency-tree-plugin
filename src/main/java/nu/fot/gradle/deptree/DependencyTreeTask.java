@@ -35,8 +35,8 @@ public abstract class DependencyTreeTask extends DefaultTask {
         JSONObject root = new JSONObject();
         root.put("project", getProjectName().get());
         root.put("plugins", new JSONArray(getPluginsJson().get()));
-        root.put("buildDependencies", new JSONObject(getBuildDependenciesJson().get()));
-        root.put("runtimeDependencies", new JSONObject(getRuntimeDependenciesJson().get()));
+        root.put("buildDependencies", new JSONArray(getBuildDependenciesJson().get()));
+        root.put("runtimeDependencies", new JSONArray(getRuntimeDependenciesJson().get()));
 
         File output = getOutputFile().getAsFile().get();
         output.getParentFile().mkdirs();

@@ -71,17 +71,47 @@ class DependencyTreePluginTest {
 
         runner(projectDir, "dependencyTree").build();
 
-        String json = readJson(projectDir, "empty");
-        // Verify section membership via the @Input provider strings, which are embedded in the JSON
-        // buildDependencies should contain testRuntimeClasspath
-        assertTrue(json.contains("\"testRuntimeClasspath\""));
-        // runtimeDependencies should only contain runtimeClasspath — verify via JSONObject
-        org.json.JSONObject root = new org.json.JSONObject(json);
-        org.json.JSONObject runtime = root.getJSONObject("runtimeDependencies");
-        assertTrue(runtime.has("runtimeClasspath"), "runtimeClasspath should be in runtimeDependencies");
-        assertFalse(runtime.has("testRuntimeClasspath"), "testRuntimeClasspath should not be in runtimeDependencies");
-        org.json.JSONObject build = root.getJSONObject("buildDependencies");
-        assertTrue(build.has("testRuntimeClasspath"), "testRuntimeClasspath should be in buildDependencies");
+        org.json.JSONObject root = new org.json.JSONObject(readJson(projectDir, "empty"));
+        assertEquals(0, root.getJSONArray("runtimeDependencies").length(), "runtimeDependencies should be empty");
+        assertEquals(0, root.getJSONArray("buildDependencies").length(), "buildDependencies should be empty");
+    }
+
+    @Test
+    void dependencyIncludesConfigurationsAttribute(@TempDir Path projectDir) throws IOException {
+        write(projectDir.resolve("settings.gradle"), "rootProject.name = 'with-configs'");
+        write(projectDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'nu.fot.dependency-tree'
+                }
+                repositories { mavenCentral() }
+                dependencies {
+                    implementation 'org.apache.commons:commons-lang3:3.14.0'
+                }
+                """);
+
+        runner(projectDir, "dependencyTree").build();
+
+        org.json.JSONObject root = new org.json.JSONObject(readJson(projectDir, "with-configs"));
+        org.json.JSONArray runtime = root.getJSONArray("runtimeDependencies");
+        org.json.JSONObject dep = runtime.getJSONObject(0);
+        assertEquals("commons-lang3", dep.getString("name"));
+        org.json.JSONArray configs = dep.getJSONArray("configurations");
+        assertTrue(configs.toList().contains("runtimeClasspath"), "runtimeClasspath should be listed in configurations");
+
+        // implementation deps also land in compileClasspath (build), so verify that config is present there
+        org.json.JSONArray build = root.getJSONArray("buildDependencies");
+        boolean foundInBuild = false;
+        for (int i = 0; i < build.length(); i++) {
+            org.json.JSONObject buildDep = build.getJSONObject(i);
+            if ("commons-lang3".equals(buildDep.getString("name"))) {
+                assertTrue(buildDep.getJSONArray("configurations").toList().contains("compileClasspath"),
+                        "build occurrence should list compileClasspath in configurations");
+                foundInBuild = true;
+                break;
+            }
+        }
+        assertTrue(foundInBuild, "commons-lang3 should also appear in buildDependencies via compileClasspath");
     }
 
     @Test

@@ -9,8 +9,11 @@ import org.gradle.api.tasks.TaskProvider;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -79,14 +82,39 @@ public class DependencyTreePlugin implements Plugin<Project> {
         return hasRuntimeRoot && !config.getName().startsWith("test");
     }
 
-    private static JSONObject categorizedConfigsJson(Project project, boolean productionRuntime) {
+    private static JSONArray categorizedConfigsJson(Project project, boolean productionRuntime) {
         Set<String> projectModules = projectModules(project);
-        JSONObject result = new JSONObject();
+        Map<String, ResolvedDependency> depByKey = new LinkedHashMap<>();
+        Map<String, List<String>> configsByKey = new LinkedHashMap<>();
+
         project.getConfigurations().stream()
                 .filter(c -> c.isCanBeResolved() && !c.isCanBeConsumed())
                 .filter(c -> isProductionRuntime(c) == productionRuntime)
                 .sorted((a, b) -> a.getName().compareTo(b.getName()))
-                .forEach(c -> result.put(c.getName(), configToJson(c, projectModules)));
+                .forEach(config -> {
+                    Set<ResolvedDependency> firstLevel;
+                    try {
+                        firstLevel = config.getResolvedConfiguration().getFirstLevelModuleDependencies();
+                    } catch (Exception e) {
+                        return;
+                    }
+                    firstLevel.stream()
+                            .filter(d -> !projectModules.contains(d.getModuleGroup() + ":" + d.getModuleName()))
+                            .forEach(d -> {
+                                String key = d.getModuleGroup() + ":" + d.getModuleName() + ":" + d.getModuleVersion();
+                                depByKey.putIfAbsent(key, d);
+                                configsByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(config.getName());
+                            });
+                });
+
+        JSONArray result = new JSONArray();
+        depByKey.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    JSONObject obj = depToJson(entry.getValue(), new HashSet<>());
+                    obj.put("configurations", new JSONArray(configsByKey.get(entry.getKey())));
+                    result.put(obj);
+                });
         return result;
     }
 
