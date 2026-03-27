@@ -6,15 +6,19 @@ A Gradle plugin that generates JSON reports of a project's dependencies, organiz
 
 The plugin registers two tasks in the `reporting` group:
 
-**`dependencyTree`** — runs per project and resolves the following configurations:
+**`dependencyTree`** — runs per project and produces three sections:
 
-| Section | Configurations |
+| Section | Contents |
 |---|---|
-| `plugins` | buildscript `classpath` |
-| `buildDependencies` | `compileClasspath`, `testCompileClasspath`, `annotationProcessor`, `testAnnotationProcessor`, `testRuntimeClasspath` |
-| `runtimeDependencies` | `runtimeClasspath` |
+| `plugins` | Dependencies from the buildscript `classpath` configuration |
+| `buildDependencies` | All resolvable configurations whose root ancestors do **not** include `runtimeOnly`, plus any test-scoped configurations |
+| `runtimeDependencies` | All resolvable configurations whose root ancestors include `runtimeOnly` and whose own name does not start with `test` |
 
-Each dependency entry includes its `group`, `name`, and `version`, along with a recursive list of transitive dependencies. Circular dependencies are detected and marked with `"(*)"` to prevent infinite loops. Project dependencies (other subprojects in the same build) are excluded — only external dependencies are listed.
+Classification is based on the configuration hierarchy rather than hardcoded names, so non-standard configurations (e.g. Spring Boot's `productionRuntimeClasspath`) are automatically placed in the correct section.
+
+Both `buildDependencies` and `runtimeDependencies` are flat arrays. Each entry represents a unique dependency (by group:name:version) and includes a `configurations` field listing every configuration it was resolved from. If the same dependency appears in multiple configurations it is merged into a single entry.
+
+Each dependency entry also includes a recursive list of transitive dependencies. Circular dependencies are detected and marked with `"(*)"` to prevent infinite loops. Project dependencies (other subprojects in the same build) are excluded — only external dependencies are listed.
 
 **`allDependencyTrees`** — runs on the root project and combines the output of all `dependencyTree` tasks into a single file with a `projects` list.
 
@@ -106,30 +110,31 @@ Or for a specific subproject only:
       "dependencies": []
     }
   ],
-  "buildDependencies": {
-    "compileClasspath": [
-      {
-        "group": "org.springframework.boot",
-        "name": "spring-boot-starter-web",
-        "version": "3.4.3",
-        "dependencies": [
-          {
-            "group": "org.springframework.boot",
-            "name": "spring-boot-starter",
-            "version": "3.4.3",
-            "dependencies": []
-          }
-        ]
-      }
-    ],
-    "testCompileClasspath": [],
-    "annotationProcessor": [],
-    "testAnnotationProcessor": []
-  },
-  "runtimeDependencies": {
-    "runtimeClasspath": [],
-    "testRuntimeClasspath": []
-  }
+  "buildDependencies": [
+    {
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-web",
+      "version": "3.4.3",
+      "configurations": ["compileClasspath", "testCompileClasspath"],
+      "dependencies": [
+        {
+          "group": "org.springframework.boot",
+          "name": "spring-boot-starter",
+          "version": "3.4.3",
+          "dependencies": []
+        }
+      ]
+    }
+  ],
+  "runtimeDependencies": [
+    {
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-web",
+      "version": "3.4.3",
+      "configurations": ["runtimeClasspath"],
+      "dependencies": []
+    }
+  ]
 }
 ```
 
@@ -141,14 +146,14 @@ Or for a specific subproject only:
     {
       "project": "app",
       "plugins": [],
-      "buildDependencies": {},
-      "runtimeDependencies": {}
+      "buildDependencies": [],
+      "runtimeDependencies": []
     },
     {
       "project": "model",
       "plugins": [],
-      "buildDependencies": {},
-      "runtimeDependencies": {}
+      "buildDependencies": [],
+      "runtimeDependencies": []
     }
   ]
 }
